@@ -32,8 +32,24 @@ class Config(BaseModel):
     openai_api_key: Optional[str] = Field(default=None, description="OpenAI API key for proxied requests")
 
 
+def _set_nested_config(config_dict: dict, section: str, key: str, value: any) -> None:
+    """Helper function to set nested configuration values.
+
+    Args:
+        config_dict: Configuration dictionary
+        section: Section name (e.g., 'llm_judge', 'proxy')
+        key: Configuration key
+        value: Configuration value
+    """
+    if section not in config_dict:
+        config_dict[section] = {}
+    config_dict[section][key] = value
+
+
 def load_config(config_path: Optional[str] = None) -> Config:
     """Load configuration from file and environment variables.
+
+    Environment variables take precedence over configuration file values.
 
     Args:
         config_path: Path to configuration file (YAML)
@@ -51,32 +67,22 @@ def load_config(config_path: Optional[str] = None) -> Config:
             config_dict = yaml.safe_load(f) or {}
 
     # Override with environment variables
-    if os.getenv('LLM_JUDGE_PROVIDER'):
-        if 'llm_judge' not in config_dict:
-            config_dict['llm_judge'] = {}
-        config_dict['llm_judge']['provider'] = os.getenv('LLM_JUDGE_PROVIDER')
+    # LLM Judge configuration
+    env_mappings = [
+        ('LLM_JUDGE_PROVIDER', 'llm_judge', 'provider', str),
+        ('LLM_JUDGE_MODEL', 'llm_judge', 'model', str),
+        ('LLM_JUDGE_API_KEY', 'llm_judge', 'api_key', str),
+        ('PROXY_HOST', 'proxy', 'host', str),
+        ('PROXY_PORT', 'proxy', 'port', int),
+    ]
 
-    if os.getenv('LLM_JUDGE_MODEL'):
-        if 'llm_judge' not in config_dict:
-            config_dict['llm_judge'] = {}
-        config_dict['llm_judge']['model'] = os.getenv('LLM_JUDGE_MODEL')
+    for env_var, section, key, type_converter in env_mappings:
+        value = os.getenv(env_var)
+        if value:
+            _set_nested_config(config_dict, section, key, type_converter(value))
 
-    if os.getenv('LLM_JUDGE_API_KEY'):
-        if 'llm_judge' not in config_dict:
-            config_dict['llm_judge'] = {}
-        config_dict['llm_judge']['api_key'] = os.getenv('LLM_JUDGE_API_KEY')
-
+    # Top-level configuration
     if os.getenv('OPENAI_API_KEY'):
         config_dict['openai_api_key'] = os.getenv('OPENAI_API_KEY')
-
-    if os.getenv('PROXY_HOST'):
-        if 'proxy' not in config_dict:
-            config_dict['proxy'] = {}
-        config_dict['proxy']['host'] = os.getenv('PROXY_HOST')
-
-    if os.getenv('PROXY_PORT'):
-        if 'proxy' not in config_dict:
-            config_dict['proxy'] = {}
-        config_dict['proxy']['port'] = int(os.getenv('PROXY_PORT'))
 
     return Config(**config_dict)

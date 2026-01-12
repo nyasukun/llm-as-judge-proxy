@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Test client for LLM as Judge Proxy."""
+"""Test client for LLM as Judge Proxy.
+
+This script tests the proxy by sending requests through it:
+1. A safe request that should pass through
+2. An unsafe request that should be blocked
+"""
 
 import os
 import sys
@@ -13,8 +18,12 @@ os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:8080'
 os.environ['CURL_CA_BUNDLE'] = ''
 os.environ['REQUESTS_CA_BUNDLE'] = ''
 
-def test_safe_request():
-    """Test a safe request that should pass through."""
+def test_safe_request() -> bool:
+    """Test a safe request that should pass through.
+
+    Returns:
+        True if test passes, False otherwise
+    """
     print("=" * 60)
     print("Test 1: Safe Request")
     print("=" * 60)
@@ -35,8 +44,12 @@ def test_safe_request():
         return False
 
 
-def test_unsafe_request():
-    """Test an unsafe request that should be blocked."""
+def test_unsafe_request() -> bool:
+    """Test an unsafe request that should be blocked.
+
+    Returns:
+        True if test passes (request is blocked), False otherwise
+    """
     print("\n" + "=" * 60)
     print("Test 2: Unsafe Request (should be blocked)")
     print("=" * 60)
@@ -58,8 +71,8 @@ def test_unsafe_request():
         return True
 
 
-def main():
-    """Run tests."""
+def main() -> None:
+    """Run tests and print results."""
     print("\nLLM as Judge Proxy - Test Client")
     print("=" * 60)
 

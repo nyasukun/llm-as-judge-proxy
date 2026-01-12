@@ -30,6 +30,10 @@ Do not provide any explanation, just True or False."""
 class LLMJudge:
     """LLM-based content safety judge."""
 
+    # Safety keywords for response parsing
+    SAFE_KEYWORDS = ["true", "yes", "safe"]
+    UNSAFE_KEYWORDS = ["false", "no", "unsafe"]
+
     def __init__(self, config: LLMJudgeConfig):
         """Initialize LLM Judge.
 
@@ -94,8 +98,52 @@ class LLMJudge:
 
         return f"{label}:\n{content_str}"
 
+    def _prepare_evaluation_messages(
+        self, request_data: Dict[str, Any], response_data: Optional[Dict[str, Any]] = None
+    ) -> list:
+        """Prepare messages for LLM evaluation.
+
+        Args:
+            request_data: Request data to evaluate
+            response_data: Response data to evaluate (optional)
+
+        Returns:
+            List of messages for LLM
+        """
+        content_parts = [self._format_content("Request", request_data)]
+
+        if response_data:
+            content_parts.append(self._format_content("Response", response_data))
+
+        content = "\n\n".join(content_parts)
+
+        return [
+            SystemMessage(content=JUDGE_SYSTEM_PROMPT),
+            HumanMessage(content=content)
+        ]
+
+    def _parse_safety_response(self, response_text: str) -> bool:
+        """Parse LLM response to determine safety.
+
+        Args:
+            response_text: Response text from LLM
+
+        Returns:
+            True if content is safe, False otherwise
+        """
+        response_lower = response_text.lower()
+
+        if response_lower in self.SAFE_KEYWORDS:
+            return True
+        elif response_lower in self.UNSAFE_KEYWORDS:
+            return False
+        else:
+            # If response is ambiguous, default to unsafe for safety
+            logger.warning(f"Ambiguous LLM judge response: {response_text}, defaulting to unsafe")
+            return False
+
     async def evaluate(self, request_data: Dict[str, Any], response_data: Optional[Dict[str, Any]] = None) -> bool:
-        """Evaluate if request and/or response content is safe.
+        """Evaluate if request and/or response content is safe (async).
 
         Args:
             request_data: Request data to evaluate
@@ -105,36 +153,15 @@ class LLMJudge:
             True if content is safe, False otherwise
         """
         try:
-            # Format content for evaluation
-            content_parts = [self._format_content("Request", request_data)]
+            messages = self._prepare_evaluation_messages(request_data, response_data)
 
-            if response_data:
-                content_parts.append(self._format_content("Response", response_data))
-
-            content = "\n\n".join(content_parts)
-
-            # Create messages
-            messages = [
-                SystemMessage(content=JUDGE_SYSTEM_PROMPT),
-                HumanMessage(content=content)
-            ]
-
-            # Invoke LLM
-            logger.info("Evaluating content with LLM judge...")
+            logger.info("Evaluating content with LLM judge (async)...")
             result = await self.llm.ainvoke(messages)
             response_text = self.parser.invoke(result).strip()
 
             logger.info(f"LLM judge response: {response_text}")
 
-            # Parse response
-            if response_text.lower() in ["true", "yes", "safe"]:
-                return True
-            elif response_text.lower() in ["false", "no", "unsafe"]:
-                return False
-            else:
-                # If response is ambiguous, default to unsafe for safety
-                logger.warning(f"Ambiguous LLM judge response: {response_text}, defaulting to unsafe")
-                return False
+            return self._parse_safety_response(response_text)
 
         except Exception as e:
             logger.error(f"Error during LLM evaluation: {e}")
@@ -142,7 +169,7 @@ class LLMJudge:
             return False
 
     def evaluate_sync(self, request_data: Dict[str, Any], response_data: Optional[Dict[str, Any]] = None) -> bool:
-        """Synchronous version of evaluate.
+        """Evaluate if request and/or response content is safe (sync).
 
         Args:
             request_data: Request data to evaluate
@@ -152,36 +179,15 @@ class LLMJudge:
             True if content is safe, False otherwise
         """
         try:
-            # Format content for evaluation
-            content_parts = [self._format_content("Request", request_data)]
+            messages = self._prepare_evaluation_messages(request_data, response_data)
 
-            if response_data:
-                content_parts.append(self._format_content("Response", response_data))
-
-            content = "\n\n".join(content_parts)
-
-            # Create messages
-            messages = [
-                SystemMessage(content=JUDGE_SYSTEM_PROMPT),
-                HumanMessage(content=content)
-            ]
-
-            # Invoke LLM
-            logger.info("Evaluating content with LLM judge...")
+            logger.info("Evaluating content with LLM judge (sync)...")
             result = self.llm.invoke(messages)
             response_text = self.parser.invoke(result).strip()
 
             logger.info(f"LLM judge response: {response_text}")
 
-            # Parse response
-            if response_text.lower() in ["true", "yes", "safe"]:
-                return True
-            elif response_text.lower() in ["false", "no", "unsafe"]:
-                return False
-            else:
-                # If response is ambiguous, default to unsafe for safety
-                logger.warning(f"Ambiguous LLM judge response: {response_text}, defaulting to unsafe")
-                return False
+            return self._parse_safety_response(response_text)
 
         except Exception as e:
             logger.error(f"Error during LLM evaluation: {e}")
