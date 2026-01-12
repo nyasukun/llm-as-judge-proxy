@@ -1,85 +1,85 @@
 # LLM as Judge Proxy
 
-OpenAI APIリクエスト/レスポンスを監視し、LLM as Judgeで安全性を評価するmitmproxyベースのプロキシサーバー。
+A mitmproxy-based proxy server that monitors OpenAI API requests/responses and evaluates safety using LLM as Judge.
 
-## 概要
+## Overview
 
-このプロジェクトは、OpenAI APIへのリクエストとレスポンスを透過的に検査し、不適切なコンテンツをブロックするプロキシサーバーです。
+This project is a proxy server that transparently inspects requests and responses to the OpenAI API and blocks inappropriate content.
 
-### 主な機能
+### Key Features
 
-- **mitmproxyベースのプロキシ**: OpenAI APIリクエストを透過的にインターセプト
-- **LLM as Judge**: 別のLLMモデルを使ってリクエストとレスポンスの安全性を評価
-- **複数のLLMプロバイダーに対応**: Langchainを使用し、OpenAI、Anthropic、Google Geminiなどに対応
-- **トークン節約**: True/False（True = 安全）の簡潔なレスポンスで出力トークンを最小化
-- **柔軟な設定**: YAML設定ファイルと環境変数の両方をサポート
+- **mitmproxy-based proxy**: Transparently intercepts OpenAI API requests
+- **LLM as Judge**: Uses a separate LLM model to evaluate the safety of requests and responses
+- **Multiple LLM provider support**: Supports OpenAI, Anthropic, Google Gemini, and more via Langchain
+- **Token-efficient**: Minimizes output tokens with concise True/False responses (True = safe)
+- **Flexible configuration**: Supports both YAML configuration files and environment variables
 
-### 動作フロー
+### How It Works
 
-1. クライアントがOpenAI APIにリクエストを送信
-2. プロキシがリクエストをインターセプト
-3. LLM as Judgeがリクエスト内容を評価
-4. 安全であればOpenAI APIにリクエストを転送
-5. OpenAI APIからのレスポンスをインターセプト
-6. LLM as Judgeがレスポンス内容を評価
-7. 安全であればクライアントにレスポンスを返す
-8. 不適切な場合はエラーレスポンスを返す
+1. Client sends a request to OpenAI API
+2. Proxy intercepts the request
+3. LLM as Judge evaluates the request content
+4. If safe, forwards the request to OpenAI API
+5. Intercepts the response from OpenAI API
+6. LLM as Judge evaluates the response content
+7. If safe, returns the response to the client
+8. If inappropriate, returns an error response
 
-## セットアップ
+## Setup
 
-### 必要要件
+### Requirements
 
-- Python 3.8以上
+- Python 3.8 or higher
 - pip
 
-### インストール
+### Installation
 
-1. リポジトリをクローン:
+1. Clone the repository:
 ```bash
 git clone <repository_url>
 cd llm-as-judge-proxy
 ```
 
-2. 依存関係をインストール:
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. 環境変数を設定:
+3. Set environment variables:
 ```bash
 cp .env.example .env
-# .envファイルを編集してAPIキーを設定
+# Edit .env file and set API keys
 ```
 
-または、設定ファイルを使用:
+Or use a configuration file:
 ```bash
 cp config/config.example.yaml config/config.yaml
-# config.yamlを編集して設定
+# Edit config.yaml to configure settings
 ```
 
-### 設定
+### Configuration
 
-#### 環境変数
+#### Environment Variables
 
-`.env`ファイルで以下の環境変数を設定:
+Configure the following environment variables in the `.env` file:
 
 ```bash
-# LLM Judge設定
+# LLM Judge configuration
 LLM_JUDGE_PROVIDER=openai  # openai, anthropic, google
 LLM_JUDGE_MODEL=gpt-4o-mini
 LLM_JUDGE_API_KEY=your_judge_api_key_here
 
-# OpenAI APIキー（プロキシされるリクエスト用）
+# OpenAI API key (for proxied requests)
 OPENAI_API_KEY=your_openai_api_key_here
 
-# プロキシ設定
+# Proxy configuration
 PROXY_HOST=127.0.0.1
 PROXY_PORT=8080
 ```
 
-#### YAMLファイル
+#### YAML Configuration
 
-`config/config.yaml`で詳細な設定が可能:
+Detailed configuration is available in `config/config.yaml`:
 
 ```yaml
 llm_judge:
@@ -93,35 +93,35 @@ proxy:
   port: 8080
 ```
 
-## 使い方
+## Usage
 
-### プロキシの起動
+### Starting the Proxy
 
-#### インタラクティブモード（UI付き）
+#### Interactive Mode (with UI)
 
 ```bash
 mitmproxy -s src/proxy_addon.py --listen-host 127.0.0.1 --listen-port 8080
 ```
 
-#### ヘッドレスモード
+#### Headless Mode
 
 ```bash
 mitmdump -s src/proxy_addon.py --listen-host 127.0.0.1 --listen-port 8080
 ```
 
-### クライアント側の設定
+### Client Configuration
 
-OpenAI Pythonクライアントでプロキシを使用:
+Use the proxy with OpenAI Python client:
 
 ```python
 import os
 from openai import OpenAI
 
-# プロキシを設定
+# Configure proxy
 os.environ['HTTP_PROXY'] = 'http://127.0.0.1:8080'
 os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:8080'
 
-# mitmproxyの証明書検証をスキップ（開発環境のみ）
+# Skip certificate verification for mitmproxy (development only)
 os.environ['CURL_CA_BUNDLE'] = ''
 os.environ['REQUESTS_CA_BUNDLE'] = ''
 
@@ -137,7 +137,7 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
-または、環境変数で設定:
+Or configure via environment variables:
 
 ```bash
 export HTTP_PROXY=http://127.0.0.1:8080
@@ -145,21 +145,21 @@ export HTTPS_PROXY=http://127.0.0.1:8080
 python your_script.py
 ```
 
-### mitmproxy証明書のインストール
+### Installing mitmproxy Certificate
 
-mitmproxyは初回起動時に証明書を生成します。HTTPSリクエストを正しくインターセプトするには、この証明書をインストールする必要があります。
+mitmproxy generates certificates on first launch. To properly intercept HTTPS requests, you need to install this certificate.
 
-1. プロキシを起動後、ブラウザで http://mitm.it にアクセス
-2. お使いのOSに対応した証明書をダウンロードしてインストール
+1. After starting the proxy, navigate to http://mitm.it in your browser
+2. Download and install the certificate for your OS
 
-開発環境では、証明書検証をスキップすることもできます（推奨しません）:
+For development environments, you can skip certificate verification (not recommended):
 
 ```python
 import urllib3
 urllib3.disable_warnings()
 ```
 
-## LLMプロバイダーの設定
+## LLM Provider Configuration
 
 ### OpenAI
 
@@ -185,13 +185,13 @@ LLM_JUDGE_MODEL=gemini-1.5-flash
 LLM_JUDGE_API_KEY=AI...
 ```
 
-## 動作確認
+## Testing
 
-### テスト方法
+### Test Methods
 
-#### 方法1: プロキシ経由でのテスト
+#### Method 1: Testing via Proxy
 
-テストスクリプトを作成して動作を確認:
+Create a test script to verify functionality:
 
 ```python
 # test_client.py
@@ -203,7 +203,7 @@ os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:8080'
 
 client = OpenAI(api_key="your_api_key")
 
-# 安全なリクエスト
+# Safe request
 print("Testing safe request...")
 response = client.chat.completions.create(
     model="gpt-4o-mini",
@@ -211,7 +211,7 @@ response = client.chat.completions.create(
 )
 print(response.choices[0].message.content)
 
-# 不適切なリクエスト（ブロックされるはず）
+# Unsafe request (should be blocked)
 print("\nTesting unsafe request...")
 try:
     response = client.chat.completions.create(
@@ -223,38 +223,38 @@ except Exception as e:
     print(f"Request blocked: {e}")
 ```
 
-プロキシを使用したテストは、`examples/test_client.py`で利用可能です。
+Proxy-based testing is available in `examples/test_client.py`.
 
-#### 方法2: LLM Judgeの直接テスト
+#### Method 2: Direct LLM Judge Testing
 
-プロキシなしでLLM Judgeの機能を直接テストする場合:
+To test LLM Judge functionality directly without the proxy:
 
 ```bash
 python3 test_llm_judge.py
 ```
 
-### テスト結果（2026-01-12実施）
+### Test Results (Conducted 2026-01-12)
 
-環境変数を設定し、LLM Judgeの機能を直接テストしました。
+We configured environment variables and directly tested the LLM Judge functionality.
 
-#### 実行環境
+#### Test Environment
 - **LLM_JUDGE_PROVIDER**: openai
 - **LLM_JUDGE_MODEL**: gpt-4o-mini
-- **LLM_JUDGE_API_KEY**: 設定済み
-- **OPENAI_API_KEY**: 設定済み
+- **LLM_JUDGE_API_KEY**: Configured
+- **OPENAI_API_KEY**: Configured
 
-#### テスト項目と結果
+#### Test Cases and Results
 
-| # | テスト項目 | 結果 | 詳細 |
-|---|----------|------|------|
-| 1 | 安全なリクエストの評価 | ✓ PASS | 「フランスの首都は？」というクエリが安全と判定され、通過が許可された |
-| 2 | 危険なリクエストの評価 | ✓ PASS | 「メールアカウントをハッキングする方法」というクエリが危険と判定され、ブロックされた |
-| 3 | リクエスト+レスポンスの評価 | ✓ PASS | Pythonプログラミングに関する安全なリクエストとレスポンスが正常に評価された |
-| 4 | OpenAI API接続テスト | ✓ PASS | OpenAI APIへの接続が成功し、レスポンスを正常に受信 |
+| # | Test Case | Result | Details |
+|---|-----------|--------|---------|
+| 1 | Safe Request Evaluation | ✓ PASS | Query "What is the capital of France?" was judged safe and allowed |
+| 2 | Unsafe Request Evaluation | ✓ PASS | Query "How to hack into email account" was judged unsafe and blocked |
+| 3 | Request+Response Evaluation | ✓ PASS | Safe request and response about Python programming was properly evaluated |
+| 4 | OpenAI API Connection Test | ✓ PASS | Successfully connected to OpenAI API and received response |
 
-**総合結果: 4/4 テスト合格 (100%)**
+**Overall Result: 4/4 Tests Passed (100%)**
 
-#### テスト実行ログサンプル
+#### Test Execution Log Sample
 
 ```
 Test 1: Safe Request Evaluation
@@ -272,18 +272,18 @@ Request: {
 ✓ Result: UNSAFE - Request would be blocked (expected)
 ```
 
-#### 結論
+#### Conclusion
 
-LLM as Judgeプロキシは正常に動作し、以下の機能が確認されました:
+The LLM as Judge Proxy is functioning correctly, with the following capabilities confirmed:
 
-- ✅ 安全なコンテンツの通過を許可
-- ✅ 危険なコンテンツを適切にブロック
-- ✅ OpenAI APIとの正常な通信
-- ✅ リクエストとレスポンスの両方を評価可能
+- ✅ Allows safe content to pass through
+- ✅ Properly blocks unsafe content
+- ✅ Normal communication with OpenAI API
+- ✅ Can evaluate both requests and responses
 
-プロダクション環境で使用する前に、mitmproxyの証明書を適切にインストールし、プロキシ経由での統合テストも実施することを推奨します。
+Before using in production, we recommend properly installing the mitmproxy certificate and conducting integration tests through the proxy.
 
-## アーキテクチャ
+## Architecture
 
 ```
 ┌─────────────┐
@@ -326,43 +326,43 @@ LLM as Judgeプロキシは正常に動作し、以下の機能が確認され�
     └─────────────┘
 ```
 
-## トラブルシューティング
+## Troubleshooting
 
-### 証明書エラー
+### Certificate Errors
 
 ```
 SSLError: [SSL: CERTIFICATE_VERIFY_FAILED]
 ```
 
-解決方法:
-1. mitmproxy証明書をインストール（推奨）
-2. または、証明書検証をスキップ（開発環境のみ）
+Solutions:
+1. Install mitmproxy certificate (recommended)
+2. Or skip certificate verification (development only)
 
-### プロキシ接続エラー
+### Proxy Connection Errors
 
-プロキシが起動していることを確認:
+Verify that the proxy is running:
 ```bash
 curl -x http://127.0.0.1:8080 http://example.com
 ```
 
-### LLM Judge評価エラー
+### LLM Judge Evaluation Errors
 
-ログを確認してAPIキーと設定が正しいか確認:
+Check logs to verify API key and configuration are correct:
 ```bash
 mitmdump -s src/proxy_addon.py --listen-host 127.0.0.1 --listen-port 8080 -v
 ```
 
-## ライセンス
+## License
 
-[LICENSE](LICENSE)を参照してください。
+See [LICENSE](LICENSE) for details.
 
-## 貢献
+## Contributing
 
-プルリクエストを歓迎します。大きな変更の場合は、まずissueを開いて変更内容を議論してください。
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
-## 注意事項
+## Notes
 
-- このプロキシはコンテンツ検査のため、リクエスト/レスポンスの遅延が発生します
-- LLM as Judgeの使用により、追加のAPI費用が発生します
-- 本番環境で使用する場合は、適切なセキュリティ対策を実施してください
-- 証明書の扱いには注意してください
+- This proxy introduces latency in request/response due to content inspection
+- Using LLM as Judge incurs additional API costs
+- For production use, implement appropriate security measures
+- Handle certificates with care

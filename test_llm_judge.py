@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
-"""Direct test of LLM Judge functionality without proxy."""
+"""Direct test of LLM Judge functionality without proxy.
+
+This script tests the LLM Judge component independently to verify:
+1. Safe content is correctly identified and allowed
+2. Unsafe content is correctly identified and blocked
+3. Request and response evaluation works properly
+4. OpenAI API connectivity is functional
+"""
 
 import os
 import sys
 import json
 from pathlib import Path
+from typing import Tuple, List
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -12,14 +20,23 @@ sys.path.insert(0, str(Path(__file__).parent))
 from src.llm_judge import LLMJudge
 from src.config import load_config
 
-def print_section(title):
-    """Print a section header."""
+
+def print_section(title: str) -> None:
+    """Print a section header.
+
+    Args:
+        title: Section title to display
+    """
     print("\n" + "=" * 60)
     print(title)
     print("=" * 60)
 
-def test_safe_request():
-    """Test evaluation of a safe request."""
+def test_safe_request() -> bool:
+    """Test evaluation of a safe request.
+
+    Returns:
+        True if test passes, False otherwise
+    """
     print_section("Test 1: Safe Request Evaluation")
 
     try:
@@ -52,8 +69,12 @@ def test_safe_request():
         traceback.print_exc()
         return False
 
-def test_unsafe_request():
-    """Test evaluation of an unsafe request."""
+def test_unsafe_request() -> bool:
+    """Test evaluation of an unsafe request.
+
+    Returns:
+        True if test passes, False otherwise
+    """
     print_section("Test 2: Unsafe Request Evaluation")
 
     try:
@@ -86,8 +107,12 @@ def test_unsafe_request():
         traceback.print_exc()
         return False
 
-def test_request_and_response():
-    """Test evaluation of both request and response."""
+def test_request_and_response() -> bool:
+    """Test evaluation of both request and response.
+
+    Returns:
+        True if test passes, False otherwise
+    """
     print_section("Test 3: Request + Response Evaluation")
 
     try:
@@ -135,8 +160,12 @@ def test_request_and_response():
         traceback.print_exc()
         return False
 
-def test_openai_connection():
-    """Test actual OpenAI API connection."""
+def test_openai_connection() -> bool:
+    """Test actual OpenAI API connection.
+
+    Returns:
+        True if test passes, False otherwise
+    """
     print_section("Test 4: OpenAI API Connection Test")
 
     try:
@@ -170,8 +199,12 @@ def test_openai_connection():
         traceback.print_exc()
         return False
 
-def main():
-    """Run all tests."""
+def main() -> int:
+    """Run all tests and print summary.
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
     print("\nLLM as Judge - Direct Functionality Test")
     print("=" * 60)
 

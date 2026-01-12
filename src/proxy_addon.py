@@ -3,12 +3,17 @@
 import json
 import logging
 from mitmproxy import http
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from src.llm_judge import LLMJudge
 from src.config import Config, load_config
 
 logger = logging.getLogger(__name__)
+
+# Constants
+OPENAI_API_HOST = "api.openai.com"
+ERROR_TYPE_SAFETY = "safety_violation"
+ERROR_CODE_POLICY = "content_policy_violation"
 
 
 class OpenAIJudgeAddon:
@@ -33,21 +38,41 @@ class OpenAIJudgeAddon:
         Returns:
             True if request is to OpenAI API
         """
-        return "api.openai.com" in flow.request.pretty_host
+        return OPENAI_API_HOST in flow.request.pretty_host
 
-    def _create_error_response(self, flow: http.HTTPFlow, message: str, status_code: int = 403):
-        """Create an error response.
+    def _parse_json_content(self, content: bytes, label: str) -> Optional[Dict[str, Any]]:
+        """Parse JSON content from bytes.
+
+        Args:
+            content: Raw bytes content
+            label: Label for logging (e.g., "request", "response")
+
+        Returns:
+            Parsed JSON dict or None if parsing fails
+        """
+        try:
+            content_str = content.decode('utf-8')
+            return json.loads(content_str)
+        except json.JSONDecodeError:
+            logger.warning(f"Could not decode {label} body as JSON")
+            return None
+        except Exception as e:
+            logger.error(f"Error parsing {label} JSON: {e}")
+            return None
+
+    def _create_error_response(self, flow: http.HTTPFlow, message: str, status_code: int = 403) -> None:
+        """Create an error response for blocked content.
 
         Args:
             flow: HTTP flow
             message: Error message
-            status_code: HTTP status code
+            status_code: HTTP status code (default: 403)
         """
         error_body = {
             "error": {
                 "message": message,
-                "type": "safety_violation",
-                "code": "content_policy_violation"
+                "type": ERROR_TYPE_SAFETY,
+                "code": ERROR_CODE_POLICY
             }
         }
 
@@ -58,90 +83,72 @@ class OpenAIJudgeAddon:
         )
 
     def request(self, flow: http.HTTPFlow) -> None:
-        """Handle incoming requests.
+        """Handle incoming requests and evaluate safety.
 
         Args:
             flow: HTTP flow
         """
-        # Only process OpenAI API requests
         if not self._is_openai_api_request(flow):
             return
 
-        try:
-            # Parse request body
-            request_body = flow.request.content.decode('utf-8')
-            request_data = json.loads(request_body)
+        request_data = self._parse_json_content(flow.request.content, "request")
+        if not request_data:
+            return
 
+        try:
             logger.info(f"Intercepted OpenAI API request to {flow.request.path}")
             logger.debug(f"Request data: {request_data}")
 
-            # Evaluate request with LLM judge
             is_safe = self.judge.evaluate_sync(request_data)
 
             if not is_safe:
                 logger.warning("Request blocked by LLM judge")
                 self._create_error_response(
                     flow,
-                    "Request content violates safety policy and has been blocked.",
-                    403
+                    "Request content violates safety policy and has been blocked."
                 )
-                return
+            else:
+                logger.info("Request passed LLM judge evaluation")
 
-            logger.info("Request passed LLM judge evaluation")
-
-        except json.JSONDecodeError:
-            logger.warning("Could not decode request body as JSON")
         except Exception as e:
-            logger.error(f"Error processing request: {e}")
+            logger.error(f"Error evaluating request: {e}")
 
     def response(self, flow: http.HTTPFlow) -> None:
-        """Handle responses.
+        """Handle responses and evaluate safety.
 
         Args:
             flow: HTTP flow
         """
-        # Only process OpenAI API responses
         if not self._is_openai_api_request(flow):
             return
 
-        # Skip if request was already blocked
-        if flow.response is None:
+        # Skip if request was already blocked or resulted in error
+        if flow.response is None or flow.response.status_code >= 400:
             return
 
-        # Skip if there was an error in the request
-        if flow.response.status_code >= 400:
+        response_data = self._parse_json_content(flow.response.content, "response")
+        request_data = self._parse_json_content(flow.request.content, "request")
+
+        if not response_data or not request_data:
             return
 
         try:
-            # Parse response body
-            response_body = flow.response.content.decode('utf-8')
-            response_data = json.loads(response_body)
-
             logger.info(f"Intercepted OpenAI API response from {flow.request.path}")
             logger.debug(f"Response data: {response_data}")
 
-            # Parse request data for context
-            request_body = flow.request.content.decode('utf-8')
-            request_data = json.loads(request_body)
-
-            # Evaluate response with LLM judge
             is_safe = self.judge.evaluate_sync(request_data, response_data)
 
             if not is_safe:
                 logger.warning("Response blocked by LLM judge")
                 self._create_error_response(
                     flow,
-                    "Response content violates safety policy and has been blocked.",
-                    403
+                    "Response content violates safety policy and has been blocked."
                 )
-                return
+            else:
+                logger.info("Response passed LLM judge evaluation")
 
-            logger.info("Response passed LLM judge evaluation")
-
-        except json.JSONDecodeError:
-            logger.warning("Could not decode response body as JSON")
         except Exception as e:
-            logger.error(f"Error processing response: {e}")
+            logger.error(f"Error evaluating response: {e}")
 
 
 # Entry point for mitmproxy
